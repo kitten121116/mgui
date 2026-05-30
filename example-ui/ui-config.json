@@ -1,0 +1,62 @@
+{
+  "mgui:control": {
+    "alias": "control",
+    "command": "mgui:control",
+    "zipFileName": "",
+    "description": "MGUI 游戏控制面板",
+    "url": "file:///example-ui/lag.html",
+    "resolution": "3",
+    "width": "0",
+    "height": "0"
+  },
+  "mgui:disclaimer": {
+    "alias": "disclaimer",
+    "command": "mgui:disclaimer",
+    "zipFileName": "",
+    "description": "免责声明页面",
+    "url": "file:///example-ui/disclaimer.html",
+    "resolution": "3",
+    "width": "0",
+    "height": "0"
+  },
+  "mgui:control-fullscreen": {
+    "alias": "control-full",
+    "command": "mgui:control-fullscreen",
+    "zipFileName": "",
+    "description": "游戏控制面板（全屏模式）",
+    "url": "file:///example-ui/lag.html",
+    "resolution": "1",
+    "width": "0",
+    "height": "0"
+  },
+  "mgui:control-custom": {
+    "alias": "control-custom",
+    "command": "mgui:control-custom",
+    "zipFileName": "",
+    "description": "游戏控制面板（自定义大小 1280x720）",
+    "url": "file:///example-ui/lag.html",
+    "resolution": "2",
+    "width": "1280",
+    "height": "720"
+  },
+  "mgui:disclaimer-quiet": {
+    "alias": "disclaimer-quiet",
+    "command": "mgui:disclaimer-quiet",
+    "zipFileName": "",
+    "description": "免责声明（静默模式）",
+    "url": "file:///example-ui/disclaimer.html",
+    "resolution": "49",
+    "width": "0",
+    "height": "0"
+  },
+  "mgui:gui-exe-demo": {
+    "alias": "gui-exe-demo",
+    "command": "mgui:gui-exe-demo",
+    "zipFileName": "",
+    "description": "GUI.exe 演示页面",
+    "url": "file:///example-ui/lag-gui-exe.html",
+    "resolution": "3",
+    "width": "0",
+    "height": "0"
+  }
+}
