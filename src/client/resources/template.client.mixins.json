@@ -1,0 +1,14 @@
+{
+	"required": true,
+	"package": "com.example.wgewge.client.mixin",
+	"compatibilityLevel": "JAVA_21",
+	"client": [
+		"ClientboundCustomPayloadPacketMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	},
+	"overwrites": {
+		"requireAnnotations": true
+	}
+}

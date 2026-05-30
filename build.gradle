@@ -1,0 +1,113 @@
+plugins {
+	id 'net.fabricmc.fabric-loom-remap' version "${loom_version}"
+	id 'maven-publish'
+	id 'application'
+}
+
+version = project.mod_version
+group = project.maven_group
+
+repositories {
+	// 使用阿里云镜像加速依赖下载
+	maven {
+		name = 'AliyunPublic'
+		url = 'https://maven.aliyun.com/repository/public'
+	}
+	maven {
+		name = 'AliyunCentral'
+		url = 'https://maven.aliyun.com/repository/central'
+	}
+	// Fabric API 和 Loader 的镜像源
+	maven {
+		name = 'FabricMC'
+		url = 'https://maven.fabricmc.net/'
+	}
+	// 可选：如果需要其他模组依赖，可以添加 CurseForge 或 Modrinth 镜像
+}
+
+loom {
+	splitEnvironmentSourceSets()
+
+	mods {
+		"template" {
+			sourceSet sourceSets.main
+			sourceSet sourceSets.client
+		}
+	}
+
+	// 配置运行环境 JVM 参数
+	runs {
+		client {
+			// 启用 AWT 系统托盘支持
+			vmArg("-Djava.awt.headless=false")
+			// 允许 AWT 在后台线程运行
+			vmArg("-Dsun.awt.exception.handler=java.awt.DefaultKeyboardFocusManager")
+			// 设置用户名
+			property "fabric.username", "danjvan114dev"
+		}
+	}
+}
+
+dependencies {
+	// To change the versions see the gradle.properties file
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	mappings loom.officialMojangMappings()
+	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+
+	// Fabric API. This is technically optional, but you probably want it anyway.
+	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+}
+
+processResources {
+	def version = project.version
+	inputs.property "version", version
+
+	filesMatching("fabric.mod.json") {
+		expand "version": version
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	it.options.release = 21
+}
+
+java {
+	// Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
+	// if it is present.
+	// If you remove this line, sources will not be generated.
+	withSourcesJar()
+
+	sourceCompatibility = JavaVersion.VERSION_21
+	targetCompatibility = JavaVersion.VERSION_21
+}
+
+jar {
+	def projectName = project.name
+	inputs.property "projectName", projectName
+
+	from("LICENSE") {
+		rename { "${it}_$projectName"}
+	}
+	
+	// 包含 webviewclib 目录到 JAR 中
+	from('webviewclib') {
+		into 'webviewclib'
+	}
+}
+
+// configure the maven publication
+publishing {
+	publications {
+		create("mavenJava", MavenPublication) {
+			from components.java
+		}
+	}
+
+	// See https://docs.gradle.org/current/userguide/publishing_maven.html for information on how to set up publishing.
+	repositories {
+		// Add repositories to publish to here.
+		// Notice: This block does NOT have the same function as the block in the top level.
+		// The repositories here will be used for publishing your artifact, not for
+		// retrieving dependencies.
+	}
+}

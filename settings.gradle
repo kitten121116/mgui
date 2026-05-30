@@ -1,0 +1,26 @@
+pluginManagement {
+	repositories {
+		maven {
+			name = 'Fabric'
+			url = 'https://maven.aliyun.com/repository/public'
+		}
+		maven {
+			name = 'MavenCentral'
+			url = 'https://maven.aliyun.com/repository/central'
+		}
+		maven {
+			name = 'GradlePlugins'
+			url = 'https://maven.aliyun.com/repository/gradle-plugin'
+		}
+		// 保留原始仓库作为备用
+		maven {
+			name = 'FabricBackup'
+			url = 'https://maven.fabricmc.net/'
+		}
+		mavenCentral()
+		gradlePluginPortal()
+	}
+}
+
+// Should match your modid
+rootProject.name = 'template'

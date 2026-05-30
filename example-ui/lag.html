@@ -1,0 +1,674 @@
+shi'shi<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MGUI 游戏控制面板</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .card-title {
+            font-size: 1.5em;
+            color: #667eea;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card-title::before {
+            content: '';
+            width: 4px;
+            height: 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 2px;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .info-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+
+        .info-label {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .info-value {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .button-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .btn {
+            padding: 15px 25px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: white;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        .btn-info {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+        }
+
+        .btn:active {
+            transform: translateY(-1px);
+        }
+
+        .command-input {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .command-input input {
+            flex: 1;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        .command-input input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .status-box {
+            background: #e8f5e9;
+            border-left: 4px solid #4caf50;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            display: none;
+        }
+
+        .status-box.show {
+            display: block;
+            animation: slideIn 0.3s ease;
+        }
+
+        .status-box.error {
+            background: #ffebee;
+            border-left-color: #f44336;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .feature-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .feature-list li {
+            padding: 12px 15px;
+            margin: 8px 0;
+            background: #f8f9fa;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.2s;
+        }
+
+        .feature-list li:hover {
+            background: #e8f0fe;
+            transform: translateX(5px);
+        }
+
+        .feature-icon {
+            width: 24px;
+            height: 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        .screenshot-container {
+            margin-top: 15px;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            display: none;
+        }
+
+        .screenshot-container img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .footer {
+            text-align: center;
+            color: white;
+            margin-top: 30px;
+            padding: 20px;
+            opacity: 0.8;
+        }
+
+        .esc-hint {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 0.9em;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 1000;
+            animation: fadeInUp 0.5s ease;
+        }
+
+        .esc-hint kbd {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-weight: bold;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 头部 -->
+        <div class="header">
+            <h1>🎮 MGUI 游戏控制面板</h1>
+            <p>使用 GUI.exe + WebView2 技术构建</p>
+        </div>
+
+        <!-- 玩家信息卡片 -->
+        <div class="card">
+            <div class="card-title">玩家信息</div>
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-label">玩家名称</div>
+                    <div class="info-value" id="playerName">加载中...</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">UI 标识</div>
+                    <div class="info-value" id="uiId">test-ui</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">服务器端口</div>
+                    <div class="info-value">26698</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 快捷操作卡片 -->
+        <div class="card">
+            <div class="card-title">快捷操作</div>
+            <div class="button-group">
+                <button class="btn btn-success" onclick="giveDiamond()">获得钻石</button>
+                <button class="btn btn-info" onclick="teleportHome()">传送回家</button>
+                <button class="btn btn-warning" onclick="setTimeDay()">设置为白天</button>
+                <button class="btn btn-primary" onclick="takeScreenshot()">截取画面</button>
+                <button class="btn btn-success" onclick="healPlayer()">恢复生命</button>
+                <button class="btn btn-info" onclick="clearInventory()">清空背包</button>
+            </div>
+        </div>
+
+        <!-- 自定义命令卡片 -->
+        <div class="card">
+            <div class="card-title">执行自定义命令</div>
+            <div class="command-input">
+                <input type="text" id="customCommand" placeholder="输入命令，例如: /give @s diamond_sword" />
+                <button class="btn btn-primary" onclick="executeCustomCommand()">执行</button>
+            </div>
+            <div id="commandStatus" class="status-box"></div>
+        </div>
+
+        <!-- 功能列表卡片 -->
+        <div class="card">
+            <div class="card-title">可用功能</div>
+            <ul class="feature-list">
+                <li>
+                    <span class="feature-icon">⚡</span>
+                    <span>执行任意 Minecraft 命令</span>
+                </li>
+                <li>
+                    <span class="feature-icon">📸</span>
+                    <span>截取游戏画面并显示</span>
+                </li>
+                <li>
+                    <span class="feature-icon">💬</span>
+                    <span>发送聊天消息</span>
+                </li>
+                <li>
+                    <span class="feature-icon">❤️</span>
+                    <span>恢复玩家生命值</span>
+                </li>
+                <li>
+                    <span class="feature-icon">🎒</span>
+                    <span>清空背包物品</span>
+                </li>
+                <li>
+                    <span class="feature-icon">🎯</span>
+                    <span>获取玩家和游戏信息</span>
+                </li>
+                <li>
+                    <span class="feature-icon">❌</span>
+                    <span>关闭 UI 窗口</span>
+                </li>
+            </ul>
+        </div>
+
+        <!-- 截图显示 -->
+        <div class="card">
+            <div class="card-title">游戏截图</div>
+            <div id="screenshotContainer" class="screenshot-container">
+                <img id="screenshotImg" src="" alt="游戏截图" />
+            </div>
+            <p id="screenshotTip" style="text-align: center; color: #999; margin-top: 10px; display: none;">
+                点击"截取画面"按钮获取截图
+            </p>
+        </div>
+
+        <!-- 底部 -->
+        <div class="footer">
+            <p>MGUI 2.0.0 - GUI.exe Integration</p>
+            <p>本地服务器: http://127.0.0.1:26698</p>
+        </div>
+    </div>
+
+    <!-- ESC 关闭提示 -->
+    <div class="esc-hint" id="escHint">
+        <span>按</span>
+        <kbd>ESC</kbd>
+        <span>关闭界面</span>
+    </div>
+
+    <script>
+        // API 基础 URL
+        const API_BASE = 'http://127.0.0.1:26698';
+        
+        // JS Bridge - 通过 HTTP API 与 Minecraft 通信
+        const mgui = {
+            // 关闭 UI
+            close: function() {
+                console.log('关闭 UI');
+                fetch(`${API_BASE}/api/close`, { 
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                })
+                .then(res => res.json())
+                .then(data => {
+                    console.log('UI 关闭响应:', data);
+                    window.close();
+                })
+                .catch(err => {
+                    console.error('关闭 UI 失败:', err);
+                    window.close();
+                });
+            },
+            
+            // 执行 Minecraft 命令
+            executeCommand: function(command) {
+                console.log('执行命令:', command);
+                return fetch(`${API_BASE}/api/command`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({command: command}),
+                    mode: 'cors'
+                })
+                .then(res => {
+                    console.log('响应状态:', res.status);
+                    if (!res.ok) {
+                        throw new Error(`HTTP error! status: ${res.status}`);
+                    }
+                    return res.json();
+                })
+                .then(data => {
+                    console.log('命令执行结果:', data);
+                    return data;
+                })
+                .catch(err => {
+                    console.error('执行命令失败:', err);
+                    console.error('错误详情:', err.message);
+                    throw err;
+                });
+            },
+            
+            // 获取截图（暂时返回占位图）
+            getScreenshot: function() {
+                console.log('获取截图');
+                // TODO: 实现截图功能，从服务器获取截图
+                return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+            },
+            
+            // 获取玩家名称
+            getPlayerName: function() {
+                // TODO: 从服务器获取真实玩家名称
+                return 'Player';
+            },
+                    
+            // 获取 UI ID
+            getUiId: function() {
+                return 'test-ui';
+            },
+                    
+            // 发送聊天消息
+            sendMessage: function(message) {
+                console.log('发送消息:', message);
+                return fetch(`${API_BASE}/api/message`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({message: message})
+                })
+                .then(res => res.json())
+                .then(data => {
+                    console.log('消息发送结果:', data);
+                    return data;
+                })
+                .catch(err => {
+                    console.error('发送消息失败:', err);
+                });
+            },
+                    
+            // 通知服务器 UI 已关闭
+            notifyClosed: function() {
+                console.log('通知服务器 UI 已关闭');
+            },
+                    
+            // 获取 UI 信息
+            getUiInfo: function() {
+                return JSON.stringify({
+                    uiId: this.getUiId(),
+                    playerName: this.getPlayerName(),
+                    timestamp: new Date().toISOString()
+                });
+            },
+                    
+            // 获取游戏时间
+            getTime: function() {
+                return fetch(`${API_BASE}/api/time`, {
+                    method: 'GET'
+                })
+                .then(res => res.json())
+                .catch(err => {
+                    console.error('获取时间失败:', err);
+                    return {time: 0};
+                });
+            },
+                    
+            // 获取玩家位置
+            getPosition: function() {
+                return fetch(`${API_BASE}/api/position`, {
+                    method: 'GET'
+                })
+                .then(res => res.json())
+                .catch(err => {
+                    console.error('获取位置失败:', err);
+                    return {x: 0, y: 0, z: 0};
+                });
+            }
+        };
+
+        // 显示状态消息
+        function showStatus(message, isError = false) {
+            const status = document.getElementById('commandStatus');
+            status.textContent = message;
+            status.className = 'status-box show' + (isError ? ' error' : '');
+            
+            setTimeout(() => {
+                status.classList.remove('show');
+            }, 3000);
+        }
+
+        // 初始化玩家信息
+        function initPlayerInfo() {
+            try {
+                const playerName = mgui.getPlayerName();
+                const uiId = mgui.getUiId();
+                
+                document.getElementById('playerName').textContent = playerName;
+                document.getElementById('uiId').textContent = uiId;
+                
+                console.log('UI 初始化完成');
+            } catch (e) {
+                console.error('初始化失败:', e);
+            }
+        }
+
+        // 获得钻石
+        function giveDiamond() {
+            mgui.executeCommand('/give @s diamond 64')
+                .then(() => {
+                    mgui.sendMessage('§a已获得 64 个钻石！');
+                    showStatus('✓ 已获得 64 个钻石');
+                })
+                .catch(e => {
+                    showStatus('✗ 执行命令失败: ' + e.message, true);
+                });
+        }
+
+        // 传送回家
+        function teleportHome() {
+            mgui.executeCommand('/tp @s 0 64 0')
+                .then(() => {
+                    mgui.sendMessage('§b已传送到出生点');
+                    showStatus('✓ 已传送到坐标 0, 64, 0');
+                })
+                .catch(e => {
+                    showStatus('✗ 传送失败: ' + e.message, true);
+                });
+        }
+
+        // 设置为白天
+        function setTimeDay() {
+            mgui.executeCommand('/time set day')
+                .then(() => {
+                    mgui.sendMessage('§e时间已设置为白天');
+                    showStatus('✓ 时间已设置为白天');
+                })
+                .catch(e => {
+                    showStatus('✗ 设置时间失败: ' + e.message, true);
+                });
+        }
+
+        // 截取画面
+        function takeScreenshot() {
+            try {
+                const screenshotUrl = mgui.getScreenshot();
+                
+                if (screenshotUrl) {
+                    const container = document.getElementById('screenshotContainer');
+                    const img = document.getElementById('screenshotImg');
+                    const tip = document.getElementById('screenshotTip');
+                    
+                    img.src = screenshotUrl;
+                    container.style.display = 'block';
+                    tip.style.display = 'none';
+                    
+                    showStatus('✓ 截图已加载');
+                } else {
+                    showStatus('✗ 截图不可用', true);
+                }
+            } catch (e) {
+                showStatus('✗ 截图失败: ' + e.message, true);
+            }
+        }
+
+        // 恢复生命
+        function healPlayer() {
+            mgui.executeCommand('/effect give @s regeneration 10 5')
+                .then(() => {
+                    return mgui.executeCommand('/effect give @s instant_health 1 0');
+                })
+                .then(() => {
+                    mgui.sendMessage('§a已恢复生命值！');
+                    showStatus('✓ 生命值已恢复');
+                })
+                .catch(e => {
+                    showStatus('✗ 恢复失败: ' + e.message, true);
+                });
+        }
+
+        // 清空背包
+        function clearInventory() {
+            mgui.executeCommand('/clear @s')
+                .then(() => {
+                    mgui.sendMessage('§e背包已清空');
+                    showStatus('✓ 背包已清空');
+                })
+                .catch(e => {
+                    showStatus('✗ 清空失败: ' + e.message, true);
+                });
+        }
+
+        // 执行自定义命令
+        function executeCustomCommand() {
+            const input = document.getElementById('customCommand');
+            const command = input.value.trim();
+            
+            if (!command) {
+                showStatus('✗ 请输入命令', true);
+                return;
+            }
+            
+            try {
+                mgui.executeCommand(command);
+                mgui.sendMessage('§7执行命令: §f' + command);
+                showStatus('✓ 命令已执行: ' + command);
+                input.value = '';
+            } catch (e) {
+                showStatus('✗ 执行失败: ' + e.message, true);
+            }
+        }
+
+        // 监听回车键
+        document.getElementById('customCommand').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                executeCustomCommand();
+            }
+        });
+
+        // 监听 ESC 键关闭界面
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' || e.key === 'Esc') {
+                console.log('检测到 ESC 键，关闭界面');
+                mgui.close();
+            }
+        });
+
+        // 页面加载完成后初始化
+        window.addEventListener('DOMContentLoaded', () => {
+            initPlayerInfo();
+            console.log('MGUI 游戏控制面板已加载');
+        });
+    </script>
+</body>
+</html>

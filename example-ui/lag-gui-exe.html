@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MGUI 测试界面 - GUI.exe</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 800px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #667eea;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+        
+        .info-card {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        
+        .info-card h2 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 1.3em;
+        }
+        
+        .info-card p {
+            color: #555;
+            line-height: 1.6;
+            margin: 5px 0;
+        }
+        
+        .feature-list {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .feature-list li {
+            padding: 10px 15px;
+            margin: 10px 0;
+            background: #e8f0fe;
+            border-radius: 8px;
+            color: #333;
+            display: flex;
+            align-items: center;
+        }
+        
+        .feature-list li::before {
+            content: "✓";
+            color: #667eea;
+            font-weight: bold;
+            margin-right: 10px;
+            font-size: 1.2em;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 30px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            font-weight: bold;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 8px;
+            color: #155724;
+            text-align: center;
+            display: none;
+        }
+        
+        .status.show {
+            display: block;
+            animation: fadeIn 0.3s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            color: #999;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 MGUI 测试界面</h1>
+        <p class="subtitle">使用 GUI.exe + WebView2 技术</p>
+        
+        <div class="info-card">
+            <h2>📋 系统信息</h2>
+            <p><strong>架构:</strong> webviewclib/GUI.exe</p>
+            <p><strong>HTTP 服务器:</strong> http://127.0.0.1:26698</p>
+            <p><strong>资源路径:</strong> mgui/resourcepacks/test-ui/</p>
+            <p><strong>启动命令:</strong> gui.exe "file://.../lag.html"</p>
+        </div>
+        
+        <div class="info-card">
+            <h2>✨ 核心特性</h2>
+            <ul class="feature-list">
+                <li>端口占用检测（26698）</li>
+                <li>本地 HTTP 服务器提供资源</li>
+                <li>独立 WebView2 浏览器窗口</li>
+                <li>ZIP 资源包自动解压缓存</li>
+                <li>完整的 HTML5/CSS3/JS 支持</li>
+            </ul>
+        </div>
+        
+        <div class="button-group">
+            <button onclick="testApi()">测试 API</button>
+            <button onclick="showInfo()">显示信息</button>
+            <button onclick="closeWindow()">关闭窗口</button>
+        </div>
+        
+        <div id="status" class="status"></div>
+        
+        <div class="footer">
+            <p>MGUI 2.0.0 - GUI.exe Integration</p>
+            <p>最后更新: 2026-05-23</p>
+        </div>
+    </div>
+    
+    <script>
+        // 显示状态消息
+        function showStatus(message) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.classList.add('show');
+            
+            setTimeout(() => {
+                status.classList.remove('show');
+            }, 3000);
+        }
+        
+        // 测试 API 连接
+        function testApi() {
+            fetch('http://127.0.0.1:26698/api/')
+                .then(response => response.json())
+                .then(data => {
+                    showStatus('✅ API 连接成功: ' + JSON.stringify(data));
+                })
+                .catch(error => {
+                    showStatus('❌ API 连接失败: ' + error.message);
+                });
+        }
+        
+        // 显示系统信息
+        function showInfo() {
+            const info = `
+平台: ${navigator.platform}
+用户代理: ${navigator.userAgent}
+语言: ${navigator.language}
+窗口尺寸: ${window.innerWidth}x${window.innerHeight}
+            `.trim();
+            
+            showStatus('ℹ️ ' + info.replace(/\n/g, ' | '));
+        }
+        
+        // 关闭窗口
+        function closeWindow() {
+            showStatus('👋 准备关闭窗口...');
+            
+            // 尝试通过 API 关闭
+            fetch('http://127.0.0.1:26698/api/close', {
+                method: 'POST'
+            }).catch(() => {
+                // 如果 API 不可用，直接关闭窗口
+                window.close();
+            });
+        }
+        
+        // 页面加载完成
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('MGUI 测试界面已加载 (GUI.exe 模式)');
+            showStatus('✅ 界面加载成功！');
+        });
+    </script>
+</body>
+</html>

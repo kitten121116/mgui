@@ -1,0 +1,38 @@
+{
+	"schemaVersion": 1,
+	"id": "mgui",
+	"version": "${version}",
+	"name": "MGUI - Minecraft GUI System",
+	"description": "A server-client mod for rendering HTML-based GUIs in Minecraft. Supports HTML/CSS/JS with custom JS APIs for game integration.",
+	"authors": [
+		"MGUI Team"
+	],
+	"contact": {
+		"homepage": "https://github.com/mgui-project",
+		"sources": "https://github.com/mgui-project/mgui"
+	},
+	"license": "MIT",
+	"icon": "assets/template/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"com.example.wgewge.Template"
+		],
+		"client": [
+			"com.example.wgewge.client.TemplateClient"
+		]
+	},
+	"mixins": [
+		"template.mixins.json",
+		{
+			"config": "template.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.19.2",
+		"minecraft": "~1.21.8",
+		"java": ">=21",
+		"fabric-api": "*"
+	}
+}
