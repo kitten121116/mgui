@@ -89,10 +89,25 @@ jar {
 		rename { "${it}_$projectName"}
 	}
 	
-	// 包含 webviewclib 目录到 JAR 中
+	// 包含 webviewclib 目录到 JAR 中（包含所有子目录和文件）
 	from('webviewclib') {
 		into 'webviewclib'
+		include '**/*'
 	}
+	
+	// 设置重复文件处理策略
+	duplicatesStrategy = 'EXCLUDE'
+}
+
+// 确保 webviewclib 资源在 processResources 阶段也被处理
+processResources {
+	from('webviewclib') {
+		into 'webviewclib'
+		include '**/*'
+	}
+	
+	// 设置重复文件处理策略
+	duplicatesStrategy = 'EXCLUDE'
 }
 
 // configure the maven publication

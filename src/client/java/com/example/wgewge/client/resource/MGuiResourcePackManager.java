@@ -223,13 +223,6 @@ public class MGuiResourcePackManager {
     /**
      * 获取UI的基础路径
      */
-    private String getUiBasePath(String alias) {
-        return MGuiConstants.RESOURCE_PACK_BASE_PATH + alias;
-    }
-    
-    /**
-1     * 获取UI的基础路径
-     */
     public String getUiBasePath(String alias) {
         String basePath = uiResourcePaths.get(alias);
         if (basePath == null) {

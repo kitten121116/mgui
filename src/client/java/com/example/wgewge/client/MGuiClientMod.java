@@ -260,20 +260,30 @@ public class MGuiClientMod implements ClientModInitializer {
     }
     
     /**
-     * 处理关闭UI指令
+     * 处理关闭UI指令（同时关闭 Minecraft 屏幕和 GUI.exe 进程）
      */
     private void handleCloseUi() {
         Minecraft client = Minecraft.getInstance();
         client.execute(() -> {
+            // 关闭 Minecraft 屏幕
             if (client.screen instanceof MGuiHtmlScreen) {
                 client.setScreen(null);
-                LOGGER.info("UI已关闭");
+            }
+            
+            // 关闭 GUI.exe 进程
+            try {
+                MGuiWebViewManager webViewManager = MGuiWebViewManager.getInstance();
+                webViewManager.closeUi("all");
+                LOGGER.info("UI已关闭（包含 GUI.exe 进程）");
+            } catch (Exception e) {
+                LOGGER.warn("关闭 GUI.exe 进程失败: {}", e.getMessage());
             }
         });
     }
     
     /**
      * 处理直接打开UI指令（版本2）
+     * 参数格式: gui.exe <url> <resolution> <width> <height>
      * 分辨率等级：1=全屏幕 2=自定义大小 3=正常预设 49=保持安静
      */
     private void handleOpenUiDirect(JsonObject json) {
@@ -281,11 +291,10 @@ public class MGuiClientMod implements ClientModInitializer {
         String resolution = json.get("resolution").getAsString();
         String width = json.has("width") ? json.get("width").getAsString() : "0";
         String height = json.has("height") ? json.get("height").getAsString() : "0";
-        String x = json.get("x").getAsString();
-        String y = json.get("y").getAsString();
         
-        LOGGER.info("收到直接打开UI指令: url={}, resolution={}, width={}, height={}, x={}, y={}", 
-            url, resolution, width, height, x, y);
+        LOGGER.info("收到直接打开UI指令: url={}, resolution={}, width={}, height={}", 
+            url, resolution, width, height);
+        LOGGER.info("原始JSON数据: {}", json.toString());
         
         // 验证参数
         if (url.isEmpty()) {
@@ -296,10 +305,10 @@ public class MGuiClientMod implements ClientModInitializer {
         // 使用 MGuiWebViewManager 直接打开 URL
         try {
             MGuiWebViewManager webViewManager = MGuiWebViewManager.getInstance();
-            webViewManager.openUiDirect(url, resolution, width, height, x, y);
+            webViewManager.openUiDirect(url, resolution, width, height);
             
             // 显示成功Toast
-            showToast("UI打开成功", "已打开: " + url, ToastType.SUCCESS);
+            showToast("UI打开成功", "已打开UI", ToastType.SUCCESS);
         } catch (Exception e) {
             LOGGER.error("直接打开UI失败: {}", e.getMessage(), e);
             showToast("打开失败", "无法打开UI: " + e.getMessage(), ToastType.ERROR);

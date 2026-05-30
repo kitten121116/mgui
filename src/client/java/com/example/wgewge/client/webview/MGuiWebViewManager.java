@@ -109,7 +109,25 @@ public class MGuiWebViewManager {
     }
     
     /**
-     * 从 JAR 中解压 webviewclib 资源
+     * 当前 webviewclib 资源版本（用于检测是否需要更新）
+     */
+    private static final String WEBVIEW_LIB_VERSION = "2.0.0";
+    
+    /**
+     * webviewclib 所需的所有文件列表（与项目根目录中的 webviewclib 文件夹保持同步）
+     */
+    private static final String[] WEBVIEW_LIB_FILES = {
+        "GUI.exe",
+        "edgeview.dll",
+        "iext2.fne",
+        "krnln.fnr",
+        "mp3.run",
+        "msgsrv.exe",
+        "spec.fne"
+    };
+    
+    /**
+     * 从 JAR 中解压 webviewclib 资源（带版本检查）
      */
     private void extractWebviewLib() {
         try {
@@ -121,16 +139,32 @@ public class MGuiWebViewManager {
                 LOGGER.info("创建 webviewclib 目录: {}", webviewLibPath.getAbsolutePath());
             }
             
-            // 从 JAR 资源中复制文件
-            String[] files = {"GUI.exe", "edgeview.dll", "krnln.fnr", "mp3.run", "spec.fne"};
+            // 检查版本文件，决定是否需要重新解压
+            File versionFile = new File(webviewLibPath, "version.txt");
+            boolean needUpdate = !versionFile.exists();
             
-            for (String fileName : files) {
+            if (!needUpdate) {
+                try (java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.FileReader(versionFile))) {
+                    String existingVersion = reader.readLine();
+                    needUpdate = !WEBVIEW_LIB_VERSION.equals(existingVersion);
+                }
+            }
+            
+            LOGGER.info("准备解压 {} 个 webviewclib 文件", WEBVIEW_LIB_FILES.length);
+            
+            for (String fileName : WEBVIEW_LIB_FILES) {
                 File targetFile = new File(webviewLibPath, fileName);
                 
-                // 如果文件已存在，跳过（避免重复解压）
-                if (targetFile.exists()) {
-                    LOGGER.debug("文件已存在，跳过: {}", fileName);
+                // 如果文件已存在且不需要更新，跳过
+                if (targetFile.exists() && !needUpdate) {
+                    LOGGER.debug("文件已存在且版本一致，跳过: {}", fileName);
                     continue;
+                }
+                
+                // 如果需要更新且文件已存在，先删除旧文件
+                if (targetFile.exists() && needUpdate) {
+                    targetFile.delete();
+                    LOGGER.info("删除旧版本文件: {}", fileName);
                 }
                 
                 // 从 JAR 资源中读取并写入文件
@@ -141,10 +175,12 @@ public class MGuiWebViewManager {
                     try (java.io.FileOutputStream outputStream = new java.io.FileOutputStream(targetFile)) {
                         byte[] buffer = new byte[4096];
                         int bytesRead;
+                        long totalBytes = 0;
                         while ((bytesRead = inputStream.read(buffer)) != -1) {
                             outputStream.write(buffer, 0, bytesRead);
+                            totalBytes += bytesRead;
                         }
-                        LOGGER.info("解压文件: {} -> {}", fileName, targetFile.getAbsolutePath());
+                        LOGGER.info("{}文件: {} ({} bytes) -> {}", needUpdate ? "更新" : "解压", fileName, totalBytes, targetFile.getAbsolutePath());
                     } finally {
                         inputStream.close();
                     }
@@ -153,7 +189,15 @@ public class MGuiWebViewManager {
                 }
             }
             
-            LOGGER.info("webviewclib 资源解压完成");
+            // 更新版本文件
+            if (needUpdate) {
+                try (java.io.PrintWriter writer = new java.io.PrintWriter(versionFile)) {
+                    writer.println(WEBVIEW_LIB_VERSION);
+                }
+                LOGGER.info("更新 webviewclib 版本: {}", WEBVIEW_LIB_VERSION);
+            }
+            
+            LOGGER.info("webviewclib 资源解压完成，共 {} 个文件", WEBVIEW_LIB_FILES.length);
             
         } catch (Exception e) {
             LOGGER.error("解压 webviewclib 资源失败: {}", e.getMessage(), e);
@@ -169,35 +213,11 @@ public class MGuiWebViewManager {
     }
     
     /**
-     * 直接打开 URL（版本2）
-     * 
-     * @param url 网址
-     * @param resolution 分辨率等级：1=全屏幕 2=自定义大小 3=正常预设 49=保持安静
-     * @param x 窗口X坐标
-     * @param y 窗口Y坐标
+     * 直接打开UI
+     * 参数格式: gui.exe <resolution> <width> <height> <url>
+     * 分辨率等级：1=全屏幕 2=自定义大小 3=正常预设 49=保持安静
      */
-    public void openUiDirect(String url, String resolution, String x, String y) {
-        if (httpServer == null) {
-            LOGGER.error("HTTP 服务器未启动");
-            return;
-        }
-        
-        // 生成唯一的 UI ID
-        String uiId = "direct_" + System.currentTimeMillis();
-        
-        // 记录 UI 路径
-        uiHtmlPaths.put(uiId, url);
-        
-        LOGGER.info("准备直接打开 URL: {} -> resolution={}", url, resolution);
-        
-        // 启动 GUI.exe 并传递参数（默认宽高为0，由GUI.exe处理）
-        launchGuiExeDirect(uiId, url, resolution, "0", "0");
-    }
-    
-    /**
-     * 直接打开UI（完整参数版本）
-     */
-    public void openUiDirect(String url, String resolution, String width, String height, String x, String y) {
+    public void openUiDirect(String url, String resolution, String width, String height) {
         if (httpServer == null) {
             LOGGER.error("HTTP 服务器未启动");
             return;
@@ -212,7 +232,7 @@ public class MGuiWebViewManager {
         LOGGER.info("准备直接打开 URL: {} -> resolution={}, width={}, height={}", 
             url, resolution, width, height);
         
-        // 启动 GUI.exe 并传递参数（x, y 参数已移除，只保留4个参数）
+        // 启动 GUI.exe 并传递参数（4个参数：url, resolution, width, height）
         launchGuiExeDirect(uiId, url, resolution, width, height);
     }
     
@@ -227,13 +247,14 @@ public class MGuiWebViewManager {
             LOGGER.info("准备启动 GUI.exe: {}", guiExe.getAbsolutePath());
             LOGGER.info("URL: {}, resolution: {}, width: {}, height: {}", url, resolution, width, height);
             
-            // 构建命令: gui.exe <url> <resolution> <width> <height>
+            // 构建命令: gui.exe "<url>" "<resolution>" "<width>" "<height>"
+            // 参数添加双引号防止特殊字符吞参数
             ProcessBuilder processBuilder = new ProcessBuilder(
                 guiExe.getAbsolutePath(),
-                url,
-                resolution,
-                width,
-                height
+                "\"" + url + "\"",
+                "\"" + resolution + "\"",
+                "\"" + width + "\"",
+                "\"" + height + "\""
             );
             
             // 设置工作目录为 webviewclib
@@ -241,6 +262,9 @@ public class MGuiWebViewManager {
             
             // 合并错误输出
             processBuilder.redirectErrorStream(true);
+            
+            // 输出完整命令行
+            LOGGER.info("启动命令: {}", String.join(" ", processBuilder.command()));
             
             // 启动进程
             guiProcess = processBuilder.start();
@@ -310,7 +334,7 @@ public class MGuiWebViewManager {
     
     /**
      * 启动 GUI.exe（使用 set.json 配置）
-     * 参数格式: gui.exe <url> <resolution> <width> <height>
+     * 参数格式: gui.exe <resolution> <width> <height> <url>
      */
     private void launchGuiExe(String uiId, String url) {
         try {
@@ -345,12 +369,13 @@ public class MGuiWebViewManager {
                 config.getResolution(), config.getWidth(), config.getHeight());
             
             // 启动进程
+            // 参数添加双引号防止特殊字符吞参数
             ProcessBuilder processBuilder = new ProcessBuilder(
                 guiExe.getAbsolutePath(),
-                entryUrl,
-                String.valueOf(config.getResolution()),
-                String.valueOf(config.getWidth()),
-                String.valueOf(config.getHeight())
+                "\"" + entryUrl + "\"",
+                "\"" + String.valueOf(config.getResolution()) + "\"",
+                "\"" + String.valueOf(config.getWidth()) + "\"",
+                "\"" + String.valueOf(config.getHeight()) + "\""
             );
             
             // 设置工作目录为 webviewclib
@@ -358,6 +383,9 @@ public class MGuiWebViewManager {
             
             // 合并错误输出
             processBuilder.redirectErrorStream(true);
+            
+            // 输出完整命令行
+            LOGGER.info("启动命令: {}", String.join(" ", processBuilder.command()));
             
             // 启动进程
             guiProcess = processBuilder.start();
@@ -485,6 +513,7 @@ public class MGuiWebViewManager {
     
     /**
      * 关闭 UI 窗口
+     * @param uiId UI ID 或 "all" 表示关闭所有
      */
     public void closeUi(String uiId) {
         LOGGER.info("关闭 UI: {}", uiId);
@@ -492,15 +521,99 @@ public class MGuiWebViewManager {
         // 停止进程监控
         stopProcessMonitor();
         
-        // 移除 UI 路径
-        uiHtmlPaths.remove(uiId);
-        currentUiId = null;
+        // 如果是 "all"，清空所有 UI
+        if ("all".equals(uiId)) {
+            uiHtmlPaths.clear();
+            currentUiId = null;
+            
+            // 强制终止 GUI.exe 进程（使用强制方式）
+            terminateGuiProcess();
+        } else {
+            // 移除指定 UI 路径
+            uiHtmlPaths.remove(uiId);
+            currentUiId = null;
+            
+            // 如果没有 UI 了，关闭进程
+            if (uiHtmlPaths.isEmpty()) {
+                terminateGuiProcess();
+            }
+        }
+    }
+    
+    /**
+     * 强制终止 GUI.exe 进程（通过路径查找并终止）
+     */
+    private void terminateGuiProcess() {
+        // 首先尝试使用保存的进程对象终止
+        if (guiProcess != null && guiProcess.isAlive()) {
+            try {
+                LOGGER.info("尝试终止 GUI.exe 进程 (PID: {})", guiProcess.pid());
+                guiProcess.destroy();
+                
+                if (guiProcess.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)) {
+                    LOGGER.info("GUI.exe 进程已优雅退出");
+                } else {
+                    LOGGER.warn("GUI.exe 进程未响应，强制杀死");
+                    guiProcess.destroyForcibly();
+                    guiProcess.waitFor(1, java.util.concurrent.TimeUnit.SECONDS);
+                    LOGGER.info("GUI.exe 进程已强制终止");
+                }
+                
+                guiProcess = null;
+            } catch (Exception e) {
+                LOGGER.warn("通过进程对象终止失败，尝试通过路径查找: {}", e.getMessage());
+            }
+        }
         
-        // 如果只有一个 UI 或没有 UI，可以关闭进程
-        if (uiHtmlPaths.isEmpty() && guiProcess != null && guiProcess.isAlive()) {
-            LOGGER.info("所有 UI 已关闭，终止 GUI.exe 进程");
-            guiProcess.destroy();
+        // 通过路径查找并终止 GUI.exe 进程（备用方案）
+        terminateGuiProcessByPath();
+    }
+    
+    /**
+     * 通过路径查找并终止 GUI.exe 进程
+     */
+    private void terminateGuiProcessByPath() {
+        if (webviewLibPath == null) {
+            LOGGER.warn("webviewLibPath 为空，无法通过路径终止进程");
+            return;
+        }
+        
+        File guiExeFile = new File(webviewLibPath, "GUI.exe");
+        String guiExePath = guiExeFile.getAbsolutePath();
+        
+        try {
+            // 使用 taskkill 命令强制终止所有 GUI.exe 进程
+            ProcessBuilder pb = new ProcessBuilder(
+                "taskkill", "/F", "/IM", "GUI.exe"
+            );
+            pb.redirectErrorStream(true);
+            Process killProcess = pb.start();
+            
+            boolean completed = killProcess.waitFor(3, java.util.concurrent.TimeUnit.SECONDS);
+            if (completed) {
+                int exitCode = killProcess.exitValue();
+                if (exitCode == 0) {
+                    LOGGER.info("通过 taskkill 成功终止 GUI.exe 进程");
+                } else {
+                    try (java.io.BufferedReader reader = new java.io.BufferedReader(
+                            new java.io.InputStreamReader(killProcess.getInputStream()))) {
+                        String line;
+                        StringBuilder output = new StringBuilder();
+                        while ((line = reader.readLine()) != null) {
+                            output.append(line).append("\n");
+                        }
+                        if (!output.toString().contains("找不到进程")) {
+                            LOGGER.warn("taskkill 退出码: {}, 输出: {}", exitCode, output.toString());
+                        }
+                    }
+                }
+            } else {
+                LOGGER.warn("taskkill 命令执行超时");
+            }
+            
             guiProcess = null;
+        } catch (Exception e) {
+            LOGGER.warn("通过路径终止 GUI.exe 进程失败: {}", e.getMessage());
         }
     }
     
