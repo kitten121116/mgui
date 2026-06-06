@@ -14,6 +14,7 @@ public abstract class MGuiPacket implements CustomPacketPayload {
     public static final ResourceLocation S2C_ID = ResourceLocation.fromNamespaceAndPath("mgui", "s2c");
     public static final ResourceLocation C2S_ID = ResourceLocation.fromNamespaceAndPath("mgui", "c2s");
     public static final ResourceLocation CLIENT_REQUEST_ID = ResourceLocation.fromNamespaceAndPath("mgui", "client_request");
+    public static final ResourceLocation RAW_ID = ResourceLocation.fromNamespaceAndPath("mgui", "main");
     
     protected final String data;
     
@@ -104,6 +105,28 @@ public abstract class MGuiPacket implements CustomPacketPayload {
             );
         
         public ClientRequestPacket(String data) {
+            super(data);
+        }
+        
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+    
+    /**
+     * 原始数据包（使用mgui:main通道，兼容Paper插件）
+     */
+    public static class RawPacket extends MGuiPacket {
+        public static final Type<RawPacket> TYPE = new Type<>(RAW_ID);
+        
+        public static final StreamCodec<FriendlyByteBuf, RawPacket> CODEC = 
+            StreamCodec.of(
+                (buf, packet) -> buf.writeUtf(packet.data),
+                buf -> new RawPacket(buf.readUtf(32767))
+            );
+        
+        public RawPacket(String data) {
             super(data);
         }
         

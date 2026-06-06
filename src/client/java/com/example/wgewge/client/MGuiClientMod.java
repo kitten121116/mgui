@@ -19,21 +19,35 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.ConfirmScreen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.network.FriendlyByteBuf;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
 /**
  * MGUI 客户端模组
  * 负责：
- * 1. 接收服务器发送的UI打开指令
+ * 1. 接收服务器发送的UI打开指令（支持 Fabric 和 Bukkit/Paper 插件消息通道）
  * 2. 下载和管理HTML资源包（支持MD5缓存校验）
  * 3. 渲染HTML界面（带进度条）
  * 4. 提供JS接口（截图、执行命令等）
  * 5. Toast通知系统
+ * 6. TCP通信支持（针对Paper服务器）
  */
 public class MGuiClientMod implements ClientModInitializer {
     public static final Logger LOGGER = LoggerFactory.getLogger("mgui_client");
+    
+    // 插件消息通道名称（与 Paper 插件一致）
+    public static final ResourceLocation PLUGIN_CHANNEL = ResourceLocation.fromNamespaceAndPath("mgui", "main");
+    
+    // TCP服务器默认端口（与Paper插件一致）
+    private static final int TCP_DEFAULT_PORT = 26698;
+    
     private static MGuiClientMod instance;
     
     // 下载进度状态
@@ -43,6 +57,19 @@ public class MGuiClientMod implements ClientModInitializer {
     
     // 清理资源包快捷键
     private KeyMapping clearCacheKey;
+    
+    // TCP客户端（用于Paper服务器通信）
+    private com.example.wgewge.client.network.MGuiTcpClient tcpClient;
+    
+    // 是否是Paper服务器（通过TCP连接检测）
+    private volatile boolean isPaperServer = false;
+    
+    // 存储TCP服务器地址（通过隐藏指令获取）
+    private String tcpServerAddress = "";
+    
+    // TCP连接重试计数器
+    private int tcpConnectAttempts = 0;
+    private static final int MAX_TCP_CONNECT_ATTEMPTS = 3;
     
     public static MGuiClientMod getInstance() {
         return instance;
@@ -58,7 +85,7 @@ public class MGuiClientMod implements ClientModInitializer {
         // 初始化管理器
         initManagers();
         
-        // 注册网络监听器
+        // 注册网络监听器（同时支持 Fabric 和 Bukkit/Paper）
         registerNetworkListeners();
         
         // 注册事件
@@ -96,25 +123,26 @@ public class MGuiClientMod implements ClientModInitializer {
     }
     
     /**
-     * 注册网络监听器
+     * 注册网络监听器（使用私有协议处理器）
      */
     private void registerNetworkListeners() {
-        // 监听服务器到客户端的消息
-        ClientPlayNetworking.registerGlobalReceiver(
-            MGuiPacket.S2CPacket.TYPE,
-            (payload, context) -> {
-                String jsonData = ((MGuiPacket.S2CPacket) payload).getData();
-                context.client().execute(() -> handleServerMessage(jsonData));
-            }
-        );
+        // 使用统一的网络处理器（支持Fabric和Plugin Message）
+        com.example.wgewge.client.network.MGuiClientNetworkHandler.register();
         
-        LOGGER.info("网络监听器注册完成");
+        LOGGER.info("网络监听器注册完成（支持 Fabric 和 Plugin Message）");
     }
     
     /**
      * 处理服务器消息（Fabric CustomPacketPayload）
      */
     private void handleServerMessage(String jsonData) {
+        processServerMessage(jsonData);
+    }
+    
+    /**
+     * 处理来自私有协议的服务器消息
+     */
+    public void handleServerMessageFromProtocol(String jsonData) {
         processServerMessage(jsonData);
     }
     
@@ -131,14 +159,20 @@ public class MGuiClientMod implements ClientModInitializer {
      */
     private void processServerMessage(String jsonData) {
         try {
+            LOGGER.info("开始处理服务器消息: {}", jsonData.length() > 100 ? jsonData.substring(0, 100) + "..." : jsonData);
+            
             JsonObject json = JsonParser.parseString(jsonData).getAsJsonObject();
             String type = json.get("type").getAsString();
             
+            LOGGER.info("消息类型: {}", type);
+            
             switch (type) {
                 case "open_ui":
+                    LOGGER.info("处理open_ui消息");
                     handleOpenUi(json);
                     break;
                 case "open_ui_direct":
+                    LOGGER.info("处理open_ui_direct消息");
                     handleOpenUiDirect(json);
                     break;
                 case "zip_chunk":
@@ -153,12 +187,120 @@ public class MGuiClientMod implements ClientModInitializer {
                 case "ui_registered":
                     handleUiRegistered(json);
                     break;
+                case "handshake":
+                    sendHandshakeResponse();
+                    break;
                 default:
                     LOGGER.warn("未知的消息类型: {}", type);
             }
         } catch (Exception e) {
             LOGGER.error("处理服务器消息失败: {}", e.getMessage(), e);
         }
+    }
+    
+    /**
+     * 发送握手响应给服务器（证明客户端已安装 Mod）
+     */
+    private void sendHandshakeResponse() {
+        try {
+            // 如果是Paper服务器，优先使用TCP发送握手
+            if (isPaperServer && tcpClient != null && tcpClient.isConnected()) {
+                String playerName = Minecraft.getInstance().getUser().getName();
+                tcpClient.sendHandshake(playerName);
+                LOGGER.info("发送握手响应成功（TCP协议）");
+            } else {
+                // 使用统一的网络处理器发送握手消息（私有协议）
+                com.example.wgewge.client.network.MGuiClientNetworkHandler.sendHandshake();
+                LOGGER.info("发送握手响应成功（私有协议）");
+            }
+        } catch (Exception e) {
+            LOGGER.error("发送握手响应失败: {}", e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * 初始化TCP客户端（尝试连接到Paper服务器）
+     */
+    public void initTcpClient(String serverAddr) {
+        if (tcpClient != null && tcpClient.isConnected()) {
+            tcpClient.disconnect();
+        }
+        
+        this.tcpServerAddress = serverAddr;
+        this.isPaperServer = true;
+        
+        // 尝试连接TCP服务器
+        connectTcpServer();
+    }
+    
+    /**
+     * 连接到TCP服务器
+     */
+    private void connectTcpServer() {
+        if (tcpConnectAttempts >= MAX_TCP_CONNECT_ATTEMPTS) {
+            LOGGER.warn("TCP连接尝试次数已达上限");
+            return;
+        }
+        
+        tcpConnectAttempts++;
+        
+        // 在新线程中尝试连接，避免阻塞游戏主线程
+        new Thread(() -> {
+            try {
+                String[] parts = tcpServerAddress.split(":");
+                String host = parts[0];
+                int port = parts.length > 1 ? Integer.parseInt(parts[1]) : TCP_DEFAULT_PORT;
+                
+                tcpClient = new com.example.wgewge.client.network.MGuiTcpClient();
+                boolean success = tcpClient.connect(host, port);
+                
+                if (success) {
+                    LOGGER.info("TCP客户端连接成功: {}:{}", host, port);
+                    tcpConnectAttempts = 0; // 重置计数器
+                    
+                    // 发送握手消息
+                    String playerName = Minecraft.getInstance().getUser().getName();
+                    tcpClient.sendHandshake(playerName);
+                } else {
+                    LOGGER.warn("TCP连接失败，第 {} 次尝试", tcpConnectAttempts);
+                    
+                    // 延迟重试
+                    if (tcpConnectAttempts < MAX_TCP_CONNECT_ATTEMPTS) {
+                        Thread.sleep(2000);
+                        connectTcpServer();
+                    }
+                }
+            } catch (Exception e) {
+                LOGGER.error("TCP连接异常: {}", e.getMessage());
+            }
+        }).start();
+    }
+    
+    /**
+     * 断开TCP连接
+     */
+    public void disconnectTcpClient() {
+        if (tcpClient != null) {
+            tcpClient.disconnect();
+            tcpClient = null;
+        }
+        isPaperServer = false;
+        tcpServerAddress = "";
+        tcpConnectAttempts = 0;
+    }
+    
+    /**
+     * 获取TCP客户端
+     */
+    public com.example.wgewge.client.network.MGuiTcpClient getTcpClient() {
+        return tcpClient;
+    }
+    
+    /**
+     * 检查是否是Paper服务器
+     */
+    public boolean isPaperServer() {
+        return isPaperServer;
     }
     
     // ZIP数据接收缓冲区
@@ -330,23 +472,112 @@ public class MGuiClientMod implements ClientModInitializer {
      * 注册事件
      */
     private void registerEvents() {
-        // 客户端连接事件
+        // 客户端连接事件 - 发送握手消息给服务器
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             LOGGER.info("已连接到服务器，MGUI系统就绪");
+            
+            // 发送握手消息，证明客户端已安装Mod
+            sendHandshakeResponse();
+            
+            // 尝试获取TCP服务器地址（针对Paper服务器）
+            requestTcpServerInfo();
         });
         
         // 客户端断开事件
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             LOGGER.info("已断开服务器连接");
+            
+            // 断开TCP连接
+            disconnectTcpClient();
         });
         
         // 客户端停止事件
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
             LOGGER.info("MGUI客户端正在关闭...");
+            disconnectTcpClient();
             ScreenshotManager.getInstance().cleanup();
             MGuiResourcePackManager.getInstance().cleanup();
             MGuiWebViewManager.getInstance().cleanup();
         });
+        
+        // 聊天消息事件 - 监听TCP服务器地址
+        net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents.GAME.register((message, overlay) -> {
+            handleChatMessage(message.getString());
+        });
+    }
+    
+    /**
+     * 请求TCP服务器信息（隐藏指令）
+     */
+    private void requestTcpServerInfo() {
+        // 检查是否已经获取过TCP地址，避免重复请求
+        if (!tcpServerAddress.isEmpty()) {
+            LOGGER.debug("已获取TCP服务器地址，跳过重复请求");
+            return;
+        }
+        
+        // 延迟发送命令，等待命令分发器初始化完成
+        new Thread(() -> {
+            try {
+                // 等待1秒让命令分发器初始化
+                Thread.sleep(1000);
+                
+                Minecraft minecraft = Minecraft.getInstance();
+                if (minecraft != null && minecraft.player != null) {
+                    minecraft.execute(() -> {
+                        try {
+                            minecraft.player.connection.sendCommand("mgui_tcp_info");
+                            LOGGER.debug("已发送TCP服务器信息请求");
+                        } catch (Exception e) {
+                            LOGGER.debug("发送TCP服务器信息请求失败（可能是Fabric服务器）: {}", e.getMessage());
+                        }
+                    });
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }, "MGUI-TCP-Request").start();
+    }
+    
+    /**
+     * 处理聊天消息（查找TCP服务器地址和UI指令）
+     */
+    private void handleChatMessage(String message) {
+        // 查找TCP服务器地址（格式: [MGUI-TCP] 127.0.0.1:26698）
+        if (message.contains("[MGUI-TCP]")) {
+            try {
+                int startIndex = message.indexOf("[MGUI-TCP]") + "[MGUI-TCP]".length();
+                String tcpAddress = message.substring(startIndex).trim();
+                
+                if (!tcpAddress.isEmpty()) {
+                    LOGGER.info("收到TCP服务器地址: {}", tcpAddress);
+                    initTcpClient(tcpAddress);
+                }
+            } catch (Exception e) {
+                LOGGER.error("解析TCP服务器地址失败: {}", e.getMessage());
+            }
+        }
+        
+        // 查找UI指令（格式: [MGUI-UI] base64_encoded_json）
+        if (message.contains("[MGUI-UI]")) {
+            try {
+                int startIndex = message.indexOf("[MGUI-UI]") + "[MGUI-UI]".length();
+                String encoded = message.substring(startIndex).trim();
+                
+                if (!encoded.isEmpty()) {
+                    // 解码Base64
+                    byte[] decoded = java.util.Base64.getDecoder().decode(encoded);
+                    String jsonData = new String(decoded, StandardCharsets.UTF_8);
+                    
+                    LOGGER.info("收到聊天消息UI指令: {}", jsonData.length() > 100 ? jsonData.substring(0, 100) + "..." : jsonData);
+                    
+                    // 处理UI指令
+                    processServerMessage(jsonData);
+                }
+            } catch (Exception e) {
+                LOGGER.error("解析聊天消息UI指令失败: {}", e.getMessage());
+            }
+        }
     }
     
     /**

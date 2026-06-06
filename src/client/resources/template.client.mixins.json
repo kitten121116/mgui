@@ -3,7 +3,8 @@
 	"package": "com.example.wgewge.client.mixin",
 	"compatibilityLevel": "JAVA_21",
 	"client": [
-		"ClientboundCustomPayloadPacketMixin"
+		"ClientboundCustomPayloadPacketMixin",
+		"ExampleClientMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

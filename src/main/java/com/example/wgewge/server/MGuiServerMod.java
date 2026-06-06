@@ -59,7 +59,29 @@ public class MGuiServerMod implements DedicatedServerModInitializer {
         // 注册命令
         registerCommands();
         
+        // 注册玩家连接事件
+        registerPlayerEvents();
+        
         LOGGER.info("MGUI 服务器端模组初始化完成");
+    }
+    
+    /**
+     * 注册玩家连接事件
+     */
+    private void registerPlayerEvents() {
+        // 玩家加入事件 - 初始化Mod状态
+        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
+            ServerPlayer player = handler.getPlayer();
+            playerModStatus.put(player.getUUID(), false);
+            LOGGER.debug("玩家 {} ({}) 加入服务器，初始Mod状态: 未安装", player.getName().getString(), player.getUUID());
+        });
+        
+        // 玩家离开事件 - 清理状态
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
+            ServerPlayer player = handler.getPlayer();
+            playerModStatus.remove(player.getUUID());
+            LOGGER.debug("玩家 {} ({}) 离开服务器，已清理状态", player.getName().getString(), player.getUUID());
+        });
     }
     
     /**
@@ -254,6 +276,14 @@ public class MGuiServerMod implements DedicatedServerModInitializer {
      * 为指定玩家打开UI（支持ZIP模式和URL模式）
      */
     public static int openUiForPlayer(ServerPlayer player, String command) {
+        // 检查玩家是否安装了客户端Mod
+        if (!hasClientMod(player)) {
+            player.sendSystemMessage(Component.literal("§c[MGUI] 您需要安装MGUI客户端Mod才能使用此功能！"));
+            player.sendSystemMessage(Component.literal("§c[MGUI] 下载地址: https://example.com/mgui-mod.jar"));
+            player.sendSystemMessage(Component.literal("§c[MGUI] 安装后重启游戏即可使用UI功能"));
+            return 0;
+        }
+        
         UiResourceInfo uiInfo = commandUiMap.get(command);
         if (uiInfo == null) {
             player.sendSystemMessage(Component.literal("§c未找到UI资源: " + command));
@@ -283,17 +313,8 @@ public class MGuiServerMod implements DedicatedServerModInitializer {
             // 计算MD5（用于客户端缓存校验）
             String md5 = new MGuiServerMod().calculateMd5(zipData);
             
-            // 发送打开UI指令（包含元数据和MD5）
-            JsonObject message = new JsonObject();
-            message.addProperty("type", "open_ui");
-            message.addProperty("alias", uiInfo.alias());
-            message.addProperty("command", uiInfo.command());
-            message.addProperty("zipFileName", uiInfo.zipFileName());
-            message.addProperty("description", uiInfo.description());
-            message.addProperty("md5", md5);
-            
-            // 先发送元数据（使用网络适配器，自动选择协议）
-            MGuiNetworkAdapter.sendToClient(player, message);
+            // 使用私有协议发送打开UI指令（包含元数据和MD5）
+            MGuiNetworkAdapter.sendOpenUi(player, uiInfo.alias(), uiInfo.command(), uiInfo.description(), md5);
             
             // 再发送ZIP数据（使用单独的消息）
             MGuiServerMod instance = new MGuiServerMod();
@@ -321,13 +342,8 @@ public class MGuiServerMod implements DedicatedServerModInitializer {
     public static int openUiDirectForPlayer(ServerPlayer player, String url, String resolution, String width, String height) {
         try {
             JsonObject message = new JsonObject();
-            message.addProperty("type", "open_ui_direct");
-            message.addProperty("url", url);
-            message.addProperty("resolution", resolution);
-            message.addProperty("width", width);
-            message.addProperty("height", height);
-            
-            MGuiNetworkAdapter.sendToClient(player, message);
+            // 使用私有协议发送直接打开UI指令
+            MGuiNetworkAdapter.sendOpenUiDirect(player, url, resolution, width, height);
             
             LOGGER.info("为玩家 {} 直接打开UI: url={}, resolution={}, width={}, height={}", 
                 player.getName().getString(), url, resolution, width, height);
@@ -345,10 +361,8 @@ public class MGuiServerMod implements DedicatedServerModInitializer {
      */
     public static int closeUiForPlayer(ServerPlayer player) {
         try {
-            JsonObject message = new JsonObject();
-            message.addProperty("type", "close_ui");
-            
-            MGuiNetworkAdapter.sendToClient(player, message);
+            // 使用私有协议发送关闭UI指令
+            MGuiNetworkAdapter.sendCloseUi(player);
             
             LOGGER.info("为玩家 {} 关闭UI", player.getName().getString());
             player.sendSystemMessage(Component.literal("§a已关闭所有UI"));
@@ -536,12 +550,18 @@ public class MGuiServerMod implements DedicatedServerModInitializer {
     /**
      * 处理客户端请求
      */
+    // 跟踪玩家是否安装了客户端Mod（使用UUID作为键，更可靠）
+    private static final Map<java.util.UUID, Boolean> playerModStatus = new java.util.HashMap<>();
+    
     private void handleClientRequest(ServerPlayer player, String jsonData) {
         try {
             JsonObject json = JsonParser.parseString(jsonData).getAsJsonObject();
             String requestType = json.get("type").getAsString();
             
             switch (requestType) {
+                case "handshake":
+                    handleHandshake(player);
+                    break;
                 case "screenshot":
                     handleScreenshotRequest(player, json);
                     break;
@@ -552,6 +572,21 @@ public class MGuiServerMod implements DedicatedServerModInitializer {
         } catch (Exception e) {
             LOGGER.error("处理客户端请求失败: {}", e.getMessage(), e);
         }
+    }
+    
+    /**
+     * 处理客户端握手消息
+     */
+    private void handleHandshake(ServerPlayer player) {
+        playerModStatus.put(player.getUUID(), true);
+        LOGGER.info("玩家 {} ({}) 已安装 MGUI 客户端Mod", player.getName().getString(), player.getUUID());
+    }
+    
+    /**
+     * 检查玩家是否安装了客户端Mod
+     */
+    public static boolean hasClientMod(ServerPlayer player) {
+        return playerModStatus.getOrDefault(player.getUUID(), false);
     }
     
     /**
@@ -577,16 +612,12 @@ public class MGuiServerMod implements DedicatedServerModInitializer {
             JsonObject chunkMessage = new JsonObject();
             chunkMessage.addProperty("type", "zip_chunk");
             chunkMessage.addProperty("chunkIndex", i);
-            chunkMessage.addProperty("totalChunks", totalChunks);
-            chunkMessage.addProperty("data", java.util.Base64.getEncoder().encodeToString(chunk));
-            
-            MGuiNetworkAdapter.sendToClient(player, chunkMessage);
+            // 使用私有协议发送ZIP数据块
+            MGuiNetworkAdapter.sendZipChunk(player, i, totalChunks, chunk);
         }
         
-        // 发送完成消息
-        JsonObject completeMessage = new JsonObject();
-        completeMessage.addProperty("type", "zip_complete");
-        MGuiNetworkAdapter.sendToClient(player, completeMessage);
+        // 使用私有协议发送ZIP完成消息
+        MGuiNetworkAdapter.sendZipComplete(player);
     }
     
     /**
